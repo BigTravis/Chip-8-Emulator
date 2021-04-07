@@ -119,13 +119,13 @@ class VM (pyglet.window.Window):
 
     def _3XXX(self):
         '''Skip next instruction if equal'''
-        if self.registers[self.vx] == (self.opcode & 0x00ff):
+        if self.registers[self.vx] == (self.opcode & 0xff):
             self.pc += 2
 
 
     def _4XXX(self):
         '''Skip next instruction if not equal'''
-        if self.registers[self.vx] != (self.opcode & 0x00ff):
+        if self.registers[self.vx] != (self.opcode & 0xff):
             self.pc += 2
 
 
@@ -137,7 +137,46 @@ class VM (pyglet.window.Window):
 
     def _6XXX(self):
         '''Set register'''
-        self.registers[self.vx] = self.opcode & 0x00ff
+        self.registers[self.vx] = self.opcode & 0xff
+
+
+    def _7XXX(self):
+        '''Add constant to register'''
+        self.registers[self.vx] += self.opcode & 0xff
+        if self.registers[self.vx] > 0xff:
+            self.registers[0xf] = 1
+        else:
+            self.registers[0xf] = 0
+        
+        self.registers[self.vx] &= 0xff
+
+
+    def _8XXX(self):
+        '''Checks if opcode is 0x8000, else calls correction function'''
+        op = self.opcode & 0xf0ff
+        if op != 0x8000:
+            try:
+                self.funcMap[op]()
+            except:
+                print("Error: unknown instruction ({})".format(self.opcode))
+
+        else:
+            self.registers[self.vx] = self.registers[self.vy]
+
+
+    def _8XX1(self):
+        '''Bitwise OR'''
+        self.registers[self.vx] = self.registers[self.vx] | self.registers[self.vy]
+
+
+    def _8XX2(self):
+        '''Bitwise AND'''
+        self.registers[self.vx] = self.registers[self.vx] & self.registers[self.vy]
+
+
+    def _8XX3(self):
+        '''Bitwise XOR'''
+        self.registers[self.vx] = self.registers[self.vx] ^ self.registers[self.vy]
 
 
     def _8XX4(self):
@@ -158,6 +197,15 @@ class VM (pyglet.window.Window):
             self.registers[0xf] = 1
         self.registers[self.vx] -= self.registers[self.vy]
         self.registers[self.vx] &= 0xff
+
+
+    def _8XX6(self):
+        '''Shift right'''
+        if (self.registers[self.vx] & 1) == 1:
+            self.registers[0xf] = 1
+        else:
+            self.registers[0xf] = 0
+        self.registers[self.vx] /= 2
 
 
     def _DXXX(self):
