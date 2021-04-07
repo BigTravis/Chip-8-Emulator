@@ -6,7 +6,39 @@ class VM (pyglet.window.Window):
                         0x00e0: self._0XX0,
                         0x00ee: self._0XXE,
                         0x1000: self._1XXX,
-
+                        0x2000: self._2XXX,
+                        0x3000: self._3XXX,
+                        0x4000: self._4XXX,
+                        0x5000: self._5XXX,
+                        0x6000: self._6XXX,
+                        0x7000: self._7XXX,
+                        0x8000: self._8XXX,
+                        0x8001: self._8XX1,
+                        0x8002: self._8XX2,
+                        0x8003: self._8XX3,
+                        0x8004: self._8XX4,
+                        0x8005: self._8XX5,
+                        0x8006: self._8XX6,
+                        0x8007: self._8XX7,
+                        0x800E: self._8XXE,
+                        0x9000: self._9XXX,
+                        0xa000: self._AXXX,
+                        0xb000: self._BXXX,
+                        0xc000: self._CXXX,
+                        0xd000: self._DXXX,
+                        0xe000: self._EXXX,
+                        0xe001: self._EXX1,
+                        0xe00e: self._EXXE,
+                        0xf000: self._FXXX,
+                        0xf007: self._FXX7,
+                        0xf00a: self._FXXA,
+                        0xf015: self._FX15,
+                        0xf018: self._FXX8,
+                        0xf01e: self._FXXE,
+                        0xf029: self._FX29,
+                        0xf033: self._FX33,
+                        0xf055: self._FX55,
+                        0xf065: self._FX65
                         }
 
     def reset(self):
@@ -50,7 +82,8 @@ class VM (pyglet.window.Window):
         if self.soundTimer > 0:
             self.soundTimer -= 1
             if self.soundTimer == 0:
-                # play sound
+                return # play sound
+                
                 
 
 
@@ -84,6 +117,12 @@ class VM (pyglet.window.Window):
         self.pc = self.opcode & 0x0fff
 
 
+    def _3XXX(self):
+        '''Skip next instruction if equal'''
+        if self.registers[self.vx] == (self.opcode & 0x00ff):
+            self.pc += 2
+
+
     def _4XXX(self):
         '''Skip next instruction if not equal'''
         if self.registers[self.vx] != (self.opcode & 0x00ff):
@@ -94,6 +133,11 @@ class VM (pyglet.window.Window):
         '''Compare'''
         if self.registers[self.vx] == self.registers[self.vy]:
             self.pc += 2
+
+
+    def _6XXX(self):
+        '''Set register'''
+        self.registers[self.vx] = self.opcode & 0x00ff
 
 
     def _8XX4(self):
@@ -114,11 +158,6 @@ class VM (pyglet.window.Window):
             self.registers[0xf] = 1
         self.registers[self.vx] -= self.registers[self.vy]
         self.registers[self.vx] &= 0xff
-
-
-    def _FX29(self):
-        '''Set location of sprite to I'''
-        self.indexRegister = (5 * self.registers[self.vx]) & 0xfff
 
 
     def _DXXX(self):
@@ -152,13 +191,58 @@ class VM (pyglet.window.Window):
 
         self.shouldDraw = True
 
-        
+
+    def _EXX1(self):
+        '''Skip next instruction if key is pressed'''
+        key = self.registers[self.vx] & 0xf
+        if self.keyInputs[key] == 0:
+            self.pc += 2
+
+
+    def _EZZE(self):
+        '''Skip next instruction if key is not pressed'''
+        key = self.registers[self.vx] & 0xf
+        if self.keyInputs[key] == 0:
+            self.pc += 2
+
+
+    def _FX29(self):
+            '''Set location of sprite to I'''
+            self.indexRegister = (5 * self.registers[self.vx]) & 0xfff
+
+
+    def _FX33(self):
+        num = self.registers[self.vx]        
+        #TOOD
+        print(num)
+
+
+    def draw(self):
+        if self.shouldDraw:
+            self.clear()
+            line = 0
+
+            for i in range(2048):
+                if self.displayBuffer[i] == 1:
+                    self.pixel.blit((i % 64) * 10, 310 - ((i / 64) * 10))
+            
+            self.flip()
+            self.shouldDraw = False
+
 
     def on_key_press(self, symbol, modifiers):
-        continue
+        if symbol in KEY_MAP.keys():
+            self.keyInputs[KEY_MAP[symbol]] = 1
+            if self.key_wait:
+                self.key_wait = False
+        else:
+            super(VM, self).on_key_press(symbol, modifiers)
+
 
     def on_key_release(self, symbol, modifiers):
-        continue
+        if symbol in KEY_MAP.keys():
+            self.key_inputs[KEY_MAP[symbol]] = 0
+
 
     def main(self):
         self.reset()
