@@ -1,4 +1,5 @@
-import pyglet, random, sys
+import pyglet, random, sys, traceback
+from pyglet.sprite import Sprite
 
 #constants for key mapping
 KEY_MAP = {pyglet.window.key._1: 0x1,
@@ -20,7 +21,8 @@ KEY_MAP = {pyglet.window.key._1: 0x1,
                     }
 
 class VM (pyglet.window.Window):
-    def __init__(self):        
+    def __init__(self):
+        super(VM, self).__init__()     
         self.funcMap = {0x000: self._0XXX, 0x00e0: self._0XX0, 0x00ee: self._0XXE,
                         0x1000: self._1XXX, 0x2000: self._2XXX, 0x3000: self._3XXX,
                         0x4000: self._4XXX, 0x5000: self._5XXX, 0x6000: self._6XXX,
@@ -52,6 +54,13 @@ class VM (pyglet.window.Window):
                     0xF0, 0x80, 0xF0, 0x80, 0xF0, # E
                     0xF0, 0x80, 0xF0, 0x80, 0x80  # F
            ]
+        self.beep = pyglet.resource.media('sound.wav', streaming=False)
+        self.pixel = pyglet.resource.image('pixel.png')
+        self.batch = pyglet.graphics.Batch()
+        self.sprites = []
+        for i in range(2048):
+            self.sprites.append(pyglet.sprite.Sprite(self.pixel,batch=self.batch))
+        
         self.reset()
         
 
@@ -59,7 +68,7 @@ class VM (pyglet.window.Window):
         self.clear()
         self.keyInputs = [0] * 16
         self.displayBuffer = [0] * 32 * 64
-        self.memory = [0] * 0xfff
+        self.memory = [0] * 4096
         self.registers = [0] * 16
         self.pc = 0x200
         self.indexRegister = 0
@@ -74,29 +83,31 @@ class VM (pyglet.window.Window):
 
     def loadProgram(self, path):
         fileIn = open(path, "rb").read()
-        
         for i in range(len(fileIn)):
-            self.memory[0x200 + i] = ord(fileIn[i])
+            self.memory[0x200 + i] = fileIn[i]
 
     def cycle(self):
-        self.opcode = self.memory[self.pc]
+        self.opcode = (self.memory[self.pc] << 8) | self.memory[self.pc + 1]
         # process opcode
         self.vx = (self.opcode & 0x0f00) >> 8
         self.vy = (self.opcode & 0x00f0) >> 4
         self.pc += 2
 
         op = self.opcode & 0xf000
-        try:
+        try:            
             self.funcMap[op]()
-        except:
-            print("Error: unknown instruction ({})".format(self.opcode))
+        except Exception as e:
+            print("Error:1 unknown instruction ({}) at pc: {}".format(op, self.pc))
+            print(op in self.funcMap)
+            print(traceback.format_exc())
+            exit(0)
 
         if self.delayTimer > 0:
             self.delayTimer -= 1
         if self.soundTimer > 0:
             self.soundTimer -= 1
             if self.soundTimer == 0:
-                return # play sound
+                self.beep.play()
                 
                 
 
@@ -106,7 +117,7 @@ class VM (pyglet.window.Window):
         try:
             self.funcMap[op]()
         except:
-            print("Error: unknown instruction ({})".format(self.opcode))
+            print("Error:2 unknown instruction ({}) at pc: {}".format(self.opcode, self.pc))
 
     
     def _0XX0(self):
@@ -285,7 +296,7 @@ class VM (pyglet.window.Window):
 
                 mask = 1 << 8 - offset
                 pixel = (currentRow & mask) >> (8 - offset)
-                self.displayBuffer ^= pixel
+                self.displayBuffer[location] ^= pixel
 
                 if self.displayBuffer[location] == 0:
                     self.registers[0xf] = 1
@@ -322,8 +333,11 @@ class VM (pyglet.window.Window):
         op = self.opcode & 0xf0ff
         try:
             self.funcMap[op]()
-        except:
-            print("Error: unknown instruction ({})".format(self.opcode))
+        except:            
+            print("Error:5 unknown instruction ({}) at pc: {}".format(op, self.pc))
+            print(op in self.funcMap)
+            print(traceback.format_exc())
+            exit(0)
 
 
     def _FXXA(self):
@@ -335,15 +349,55 @@ class VM (pyglet.window.Window):
             self.pc -=2
 
 
+    def _FXX7(self):
+        '''Set Vx to delay timer'''
+        self.registers[self.vx] = self.delayTimer
+
+
+    def _FX15(self):
+        '''Set delay timer to Vx'''
+        self.delayTimer = self.registers[self.vx]
+
+
+    def _FXX8(self):
+        '''Set sound timer to Vx'''
+        self.soundTimer = self.registers[self.vx]
+
+
+    def _FXXE(self):
+        '''Increment I register by Vx'''
+        self.indexRegister += self.registers[self.vx]
+        if self.indexRegister > 0xfff:
+            self.registers[0xf] = 1
+            self.indexRegister &= 0xfff
+        else:
+            self.registers[0xf] = 0
+
+
     def _FX29(self):
             '''Set location of sprite to I'''
-            self.indexRegister = (5 * self.registers[self.vx]) & 0xfff
+            self.indexRegister = int(5 * self.registers[self.vx]) & 0xfff
 
 
     def _FX33(self):
         num = self.registers[self.vx]        
-        #TOOD
-        print(num)
+        self.memory[self.indexRegister + 2] = num % 10
+        num /= 10
+        self.memory[self.indexRegister + 1] = num % 10
+        num /= 10
+        self.memory[self.indexRegister] = num % 10
+
+
+    def _FX55(self):
+        for i in range(self.vx + 1):
+            self.memory[self.indexRegister + i] = self.registers[i]
+        self.indexRegister += self.vx + 1
+
+
+    def _FX65(self):
+        for i in range(self.vx + 1):
+            self.registers[i] = self.memory[self.indexRegister + i]
+        self.indexRegister += self.vx + 1
 
 
     def getKey(self):
@@ -355,12 +409,16 @@ class VM (pyglet.window.Window):
 
     def draw(self):
         if self.shouldDraw:
-            self.clear()
-            
             for i in range(2048):
                 if self.displayBuffer[i] == 1:
-                    self.pixel.blit((i % 64) * 10, 310 - ((i / 64) * 10))
+                    self.sprites[i].x = (i % 64) * 10
+                    self.sprites[i].y = 310 - ((i / 64) * 10)
+                    self.sprites[i].batch = self.batch
+                else:
+                    self.sprites[i].batch = None
             
+            self.clear()
+            self.batch.draw()
             self.flip()
             self.shouldDraw = False
 
@@ -376,14 +434,14 @@ class VM (pyglet.window.Window):
 
     def on_key_release(self, symbol, modifiers):
         if symbol in KEY_MAP.keys():
-            self.key_inputs[KEY_MAP[symbol]] = 0
+            self.keyInputs[KEY_MAP[symbol]] = 0
 
 
     def main(self):
         self.reset()
         self.loadProgram(sys.argv[1])
 
-        while not self.hasExit:
+        while not self.has_exit:
             self.dispatch_events()
             self.cycle()
             self.draw()
