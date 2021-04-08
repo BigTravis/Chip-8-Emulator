@@ -1,5 +1,4 @@
 import pyglet, random, sys, traceback
-from pyglet.sprite import Sprite
 
 #constants for key mapping
 KEY_MAP = {pyglet.window.key._1: 0x1,
@@ -21,6 +20,7 @@ KEY_MAP = {pyglet.window.key._1: 0x1,
                     }
 
 class VM (pyglet.window.Window):
+    '''Virtual machine that handles the emulation of the Chip 8 interpreter'''
     def __init__(self):
         super(VM, self).__init__()     
         self.funcMap = {0x000: self._0XXX, 0x00e0: self._0XX0, 0x00ee: self._0XXE,
@@ -65,6 +65,7 @@ class VM (pyglet.window.Window):
         
 
     def reset(self):
+        '''Resets the VM'''
         self.clear()
         self.keyInputs = [0] * 16
         self.displayBuffer = [0] * 32 * 64
@@ -82,11 +83,13 @@ class VM (pyglet.window.Window):
             self.memory[i] = self.fonts[i]
 
     def loadProgram(self, path):
+        '''Loads the program at PATH into memory'''
         fileIn = open(path, "rb").read()
         for i in range(len(fileIn)):
             self.memory[0x200 + i] = fileIn[i]
 
     def cycle(self):
+        '''Represents a CPU cycle'''
         self.opcode = (self.memory[self.pc] << 8) | self.memory[self.pc + 1]
         # process opcode
         self.vx = (self.opcode & 0x0f00) >> 8
@@ -113,6 +116,7 @@ class VM (pyglet.window.Window):
 
 
     def _0XXX(self):
+        '''Narrows down the opcode to either 0XX0 or 0XXE'''
         op = self.opcode & 0xf0ff
         try:
             self.funcMap[op]()
@@ -276,6 +280,7 @@ class VM (pyglet.window.Window):
 
 
     def _DXXX(self):
+        '''Draws a frame'''
         self.registers[0xf] = 0
         x = self.registers[self.vx] & 0xff
         y = self.registers[self.vy] & 0xff
@@ -401,6 +406,8 @@ class VM (pyglet.window.Window):
 
 
     def getKey(self):
+        '''Checks to see if a key has been pressed.
+        Returns the key number if pressed, or -1 if none found'''
         for i in range(16):
             if self.keyInputs[i] == 1:
                 return i
@@ -408,6 +415,7 @@ class VM (pyglet.window.Window):
 
 
     def draw(self):
+        '''Draws the new frame onto the window'''
         if self.shouldDraw:
             for i in range(2048):
                 if self.displayBuffer[i] == 1:
@@ -424,6 +432,7 @@ class VM (pyglet.window.Window):
 
 
     def on_key_press(self, symbol, modifiers):
+        '''Overridden method of Pyglet'''
         if symbol in KEY_MAP.keys():
             self.keyInputs[KEY_MAP[symbol]] = 1
             if self.key_wait:
@@ -433,11 +442,13 @@ class VM (pyglet.window.Window):
 
 
     def on_key_release(self, symbol, modifiers):
+        '''Overridden method of Pyglet'''
         if symbol in KEY_MAP.keys():
             self.keyInputs[KEY_MAP[symbol]] = 0
 
 
     def main(self):
+        '''Main loop'''
         self.reset()
         self.loadProgram(sys.argv[1])
 
