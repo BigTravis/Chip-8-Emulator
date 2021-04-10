@@ -82,11 +82,13 @@ class VM (pyglet.window.Window):
         for i in range(80):
             self.memory[i] = self.fonts[i]
 
+
     def loadProgram(self, path):
         '''Loads the program at PATH into memory'''
         fileIn = open(path, "rb").read()
         for i in range(len(fileIn)):
             self.memory[0x200 + i] = fileIn[i]
+
 
     def cycle(self):
         '''Represents a CPU cycle'''
@@ -110,9 +112,7 @@ class VM (pyglet.window.Window):
         if self.soundTimer > 0:
             self.soundTimer -= 1
             if self.soundTimer == 0:
-                self.beep.play()
-                
-                
+                self.beep.play()            
 
 
     def _0XXX(self):
@@ -456,6 +456,7 @@ class VM (pyglet.window.Window):
             self.dispatch_events()
             self.cycle()
             self.draw()
+
 
 if __name__ == '__main__':
     virtualMachine = VM()
